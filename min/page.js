@@ -1,0 +1,1 @@
+"use strict";const r=class{constructor(t){this.react=t.react;const{minstrel:e}=t;console.log("injections ",t),console.log("main",e.getMain())}page(){return this.react.createElement("h1",{},"PAGEE33")}static inject(){return{react:"react/react:16.13.1",minstrel:"boardmeister/minstrel:latest"}}};export default r;
