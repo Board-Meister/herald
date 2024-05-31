@@ -1,14 +1,14 @@
 const page = (react, dom) => {
     const navigate = dom.useNavigate();
-    return react.createElement('h1', {}, 'This is home page', react.createElement('a', { onClick: () => {
-            navigate('/page2');
-        } }, 'Page 2'));
+    return react.createElement('h1', {}, 'This is second page', react.createElement('a', { onClick: () => {
+            navigate('/');
+        } }, 'HOME'));
 };
 const HeraldPage = class {
     constructor(injections) {
-        this.dom = injections.dom;
         this.react = injections.react;
-        console.log('injections ', injections);
+        this.dom = injections.dom;
+        console.log('injected dome', this.dom);
     }
     page() {
         return page(this.react, this.dom);

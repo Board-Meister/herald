@@ -1,13 +1,13 @@
 import { IInjectable, ILazy } from "@boardmeister/marshal"
 import type { DashboardContextType } from "@boardmeister/minstrel"
 import type React from "react";
-import type DOM from "react-router-dom";
+import type DOM from 'react-router-dom';
 
 const page = (react: typeof React, dom: typeof DOM): React.ReactNode => {
   const navigate = dom.useNavigate();
-  return react.createElement('h1', {}, 'This is home page', react.createElement('a', {onClick: () => {
-      navigate('/page2');
-    }}, 'Page 2'
+  return react.createElement('h1', {}, 'This is second page', react.createElement('a', {onClick: () => {
+      navigate('/');
+    }}, 'HOME'
   ))
 }
 
@@ -17,12 +17,12 @@ const HeraldPage: IInjectable = class implements ILazy {
 
   constructor(injections: {
     react: typeof React,
-    minstrel: DashboardContextType
+    minstrel: DashboardContextType,
     dom: typeof DOM,
   }) {
-    this.dom = injections.dom;
     this.react = injections.react;
-    console.log('injections ', injections)
+    this.dom = injections.dom;
+    console.log('injected dome', this.dom)
   }
 
   page(): React.ReactNode {
