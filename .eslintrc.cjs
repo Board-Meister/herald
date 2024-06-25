@@ -18,6 +18,7 @@ module.exports = {
   ignorePatterns: ['dist', '.eslintrc.cjs'],
   parser: '@typescript-eslint/parser',
   rules: {
+    '@typescript-eslint/no-unnecessary-condition': 'off',
     '@typescript-eslint/no-non-null-assertion': 'off',
     "import/prefer-default-export": "off",
     "@typescript-eslint/explicit-function-return-type": [
