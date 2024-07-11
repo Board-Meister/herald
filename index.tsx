@@ -2,41 +2,44 @@ import type Marshal from "@boardmeister/marshal"
 import type { Module } from "@boardmeister/marshal"
 import type { IInjectable, RegisterConfig } from "@boardmeister/marshal"
 
-export interface Subscription {
-  method: string;
-  priority: number;
-  config?: RegisterConfig;
-}
-
-export type Subscriptions = Record<string, string|Subscription|Subscription[]>;
-
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 declare class _ISubscriber {
   static subscriptions: Subscriptions;
 }
 export type ISubscriber = typeof _ISubscriber;
 
+export type AmbiguousSubscription = string|Subscription|Subscription[]|EventHandler;
+export type EventHandler = (event: CustomEvent) => Promise<void>|void;
+export type Subscriptions = Record<string, AmbiguousSubscription>;
+
+export interface Subscription {
+  method: string|EventHandler;
+  priority: number;
+  constraint?: string|Module|null;
+}
+
+export interface ISubscriberObject {
+  module: ISubscriber;
+  config: RegisterConfig;
+}
+
 interface IInjection extends Record<string, object> {
-  subscribers: { module: ISubscriber, config: RegisterConfig }[];
+  subscribers: ISubscriberObject[];
   marshal: Marshal;
 }
 
-export interface IHerald {
-  dispatch: (event: CustomEvent) => Promise<void>;
-  sortSubscribers: () => void;
-}
-
-const Herald: IInjectable = class implements IHerald {
-  injected?: IInjection;
-  subscribers: Record<string, Subscription[]> = {};
+export class Herald {
+  #injected?: IInjection;
+  #subscribers: Record<string, Subscription[]> = {};
 
   static inject: Record<string, string> = {
     'marshal': 'boardmeister/marshal',
     'subscribers': '!subscriber',
   }
   inject(injections: IInjection): void {
-    this.injected = injections;
-    this.sortSubscribers();
+    if (this.#injected) return;
+    this.#injected = injections;
+    this.#sortSubscribers();
   }
 
   async dispatch(event: CustomEvent): Promise<void> {
@@ -44,21 +47,32 @@ const Herald: IInjectable = class implements IHerald {
       throw new Error('Event passed to dispatcher must be of type CustomEvent')
     }
 
-    const { marshal } = this.injected!,
+    const { marshal } = this.#injected!,
       key = event.type,
-      subscribers = (this.subscribers[key] ?? [])
+      subscribers = (this.#subscribers[key] ?? [])
     ;
     for (const subscriber of subscribers) {
       try {
-        const constraint = marshal.getModuleConstraint(subscriber.config!),
-          module = marshal.get<Module>(constraint);
-        if (!module) {
-          throw new Error('Module ' + constraint + ' doesn\'t exist');
+        const constraint = subscriber.constraint!,
+          module = typeof constraint == 'string' ? marshal.get<Module>(constraint) : constraint
+        ;
+        let method: EventHandler|string|null = subscriber.method;
+        if (module && typeof method == 'string') {
+          method = module[method] as EventHandler ?? null;
+          if (method) {
+            method = method.bind(module);
+          }
         }
-        if (typeof module[subscriber.method] != 'function') {
-          throw new Error('Module ' + constraint + ' doesn\'t have non-static method ' + subscriber.method);
+
+        if (typeof method != 'function') {
+          throw new Error(
+            'Module ' + String(constraint.constructor ?? constraint) + ' doesn\'t have non-static method '
+            + String(subscriber.method)
+          );
         }
-        await (module[subscriber.method] as Function)(event);
+
+        await method(event);
+
         // Stop propagation
         if (event.cancelBubble) {
           break;
@@ -69,59 +83,72 @@ const Herald: IInjectable = class implements IHerald {
     }
   }
 
-  isObject(x: unknown): boolean {
+  #isObject(x: unknown): boolean {
     return typeof x === 'object' && !Array.isArray(x) && x !== null;
   }
 
-  sortSubscribers(): void {
-    const moduleToSubscriptions: Record<string, Subscription[]> = {};
-    this.injected!.subscribers.forEach(subscriberObject => {
+  #sortSubscribers(): void {
+    const { marshal } = this.#injected!;
+    this.#subscribers = {};
+    this.#injected!.subscribers.forEach(subscriberObject => {
       // Allows us to sort before classes where initialized
       const subscriptions = subscriberObject.module.subscriptions
-        ?? ((subscriberObject.module as any).constructor as typeof _ISubscriber)?.subscriptions;
+        ?? (subscriberObject.module.constructor as typeof _ISubscriber)?.subscriptions
+      ;
       if (typeof subscriptions != 'object') {
         return;
       }
 
-      if (!this.isObject(subscriptions)) {
+      if (!this.#isObject(subscriptions)) {
         return;
       }
 
       Object.keys(subscriptions).forEach((moduleName: string) => {
-        if (!moduleToSubscriptions[moduleName]) {
-          moduleToSubscriptions[moduleName] = [];
-        }
-
-        if (this.isObject(subscriptions[moduleName])) {
-          moduleToSubscriptions[moduleName] = [
-            ...moduleToSubscriptions[moduleName],
-            { ...subscriptions[moduleName] as Subscription, config: subscriberObject.config },
-          ];
-        } else if (Array.isArray(subscriptions[moduleName])) {
-          moduleToSubscriptions[moduleName] = [
-            ...moduleToSubscriptions[moduleName],
-            ...((subscriptions[moduleName] as Subscription[]).map(subscription => ({
-              ...subscription,
-              config: subscriberObject.config,
-            }))),
-          ];
-        } else {
-          moduleToSubscriptions[moduleName] = [
-            ...moduleToSubscriptions[moduleName],
-            { method: subscriptions[moduleName] as string, priority: 0, config: subscriberObject.config },
-          ];
-        }
+        this.register(
+          moduleName,
+          subscriptions[moduleName],
+          marshal.getModuleConstraint(subscriberObject.config),
+          false,
+        );
       });
     })
 
-    Object.keys(moduleToSubscriptions).forEach(moduleToSubscription => {
-      moduleToSubscriptions[moduleToSubscription].sort(function(a: Subscription, b: Subscription) {
-        return a.priority - b.priority;
-      });
+    Object.keys(this.#subscribers).forEach(event => {
+      this.#sort(event);
     })
+  }
 
-    this.subscribers = moduleToSubscriptions;
+  register(
+    event: string,
+    subscription: AmbiguousSubscription,
+    constraint?: string|Module|null,
+    sort = true
+  ): void {
+    const subs = (Array.isArray(subscription) ? subscription : [subscription]) as Subscription[];
+    for (const sub of subs) {
+      if (sub.priority < -256 || sub.priority > 256) {
+        console.error('Subscriber priority must be in range -256:256', { [event]: sub });
+        return;
+      }
+    }
+
+    constraint ??= null;
+
+    this.#subscribers[event] = [
+      ...(this.#subscribers[event] ?? []),
+      ...(this.#isObject(subscription) && [{ ...subscription as Subscription, constraint }])
+        || (Array.isArray(subscription) && (subscription.map(subscription => ({ ...subscription, constraint }))))
+        || ([{ method: subscription as string|EventHandler, priority: 0, constraint }])
+      ,
+    ];
+
+    sort && this.#sort(event);
+  }
+
+  #sort(event: string): void {
+    this.#subscribers[event].sort((a: Subscription, b: Subscription) => a.priority - b.priority);
   }
 }
 
-export default Herald;
+const EnHerald: IInjectable = Herald;
+export default EnHerald;
