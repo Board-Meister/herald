@@ -12,6 +12,7 @@ export interface Subscription {
     method: string | EventHandler;
     priority: number;
     constraint?: string | Module | null;
+    index?: number;
 }
 export interface ISubscriberObject {
     module: ISubscriber;
@@ -26,7 +27,8 @@ export declare class Herald {
     static inject: Record<string, string>;
     inject(injections: IInjection): void;
     dispatch(event: CustomEvent): Promise<void>;
-    register(event: string, subscription: AmbiguousSubscription, constraint?: string | Module | null, sort?: boolean): void;
+    register(event: string, subscription: AmbiguousSubscription, constraint?: string | Module | null, sort?: boolean, symbol?: symbol | null): () => void;
+    unregister(event: string, symbol: symbol): void;
 }
 declare const EnHerald: IInjectable;
 export default EnHerald;

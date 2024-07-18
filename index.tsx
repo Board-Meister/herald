@@ -16,6 +16,7 @@ export interface Subscription {
   method: string|EventHandler;
   priority: number;
   constraint?: string|Module|null;
+  index?: number;
 }
 
 export interface ISubscriberObject {
@@ -31,6 +32,7 @@ interface IInjection extends Record<string, object> {
 export class Herald {
   #injected?: IInjection;
   #subscribers: Record<string, Subscription[]> = {};
+  #subscribersMap: Record<symbol, Subscription[]> = {};
 
   static inject: Record<string, string> = {
     'marshal': 'boardmeister/marshal',
@@ -49,7 +51,8 @@ export class Herald {
 
     const { marshal } = this.#injected!,
       key = event.type,
-      subscribers = (this.#subscribers[key] ?? [])
+      // Cloning subs array to not skip other subscriptions if previous subs unregistered during their execution
+      subscribers = [...(this.#subscribers[key] ?? [])]
     ;
     for (const subscriber of subscribers) {
       try {
@@ -65,6 +68,7 @@ export class Herald {
         }
 
         if (typeof method != 'function') {
+          console.error('Error below references this object', constraint)
           throw new Error(
             'Module ' + String(constraint.constructor ?? constraint) + ' doesn\'t have non-static method '
             + String(subscriber.method)
@@ -79,6 +83,7 @@ export class Herald {
         }
       } catch (e) {
         console.error('Dispatcher error:', e);
+        throw e;
       }
     }
   }
@@ -121,28 +126,62 @@ export class Herald {
   register(
     event: string,
     subscription: AmbiguousSubscription,
-    constraint?: string|Module|null,
-    sort = true
-  ): void {
-    const subs = (Array.isArray(subscription) ? subscription : [subscription]) as Subscription[];
+    constraint: string|Module|null = null,
+    sort = true,
+    symbol: symbol|null = null,
+  ): () => void {
+    symbol ??= Symbol('event');
+
+    const subs = (
+      Array.isArray(subscription)
+        ? subscription
+        : [
+          typeof subscription == 'object'
+            ? subscription
+            : { method: subscription }
+        ]
+      ) as Subscription[]
+    ;
     for (const sub of subs) {
+      sub.priority ??= 0;
       if (sub.priority < -256 || sub.priority > 256) {
         console.error('Subscriber priority must be in range -256:256', { [event]: sub });
-        return;
+        throw new Error('Error above stopped registration of an event');
       }
+      sub.constraint ??= constraint;
     }
-
-    constraint ??= null;
 
     this.#subscribers[event] = [
       ...(this.#subscribers[event] ?? []),
-      ...(this.#isObject(subscription) && [{ ...subscription as Subscription, constraint }])
-        || (Array.isArray(subscription) && (subscription.map(subscription => ({ ...subscription, constraint }))))
-        || ([{ method: subscription as string|EventHandler, priority: 0, constraint }])
-      ,
+      ...subs,
+    ];
+
+    this.#subscribersMap[symbol] = [
+      ...(this.#subscribersMap[symbol] ?? []),
+      ...subs,
     ];
 
     sort && this.#sort(event);
+
+    return (): void => {
+      this.unregister(event, symbol);
+    }
+  }
+
+  unregister(event: string, symbol: symbol): void {
+    if (!this.#subscribersMap[symbol]) {
+      console.warn('Tried to unregister not registered events', event);
+      return;
+    }
+
+    const events = [...this.#subscribers[event]];
+    this.#subscribersMap[symbol].forEach(sub => {
+      const index = events.indexOf(sub);
+      if (index !== -1) events.splice(index, 1);
+      else throw new Error('Attempt to remove event from wrong collection');
+    })
+    this.#subscribers[event] = events; // Persists the changes
+    delete this.#subscribersMap[symbol];
   }
 
   #sort(event: string): void {

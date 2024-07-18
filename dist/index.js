@@ -9,12 +9,13 @@ var __classPrivateFieldSet = (this && this.__classPrivateFieldSet) || function (
     if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
     return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
 };
-var _Herald_instances, _Herald_injected, _Herald_subscribers, _Herald_isObject, _Herald_sortSubscribers, _Herald_sort;
+var _Herald_instances, _Herald_injected, _Herald_subscribers, _Herald_subscribersMap, _Herald_isObject, _Herald_sortSubscribers, _Herald_sort;
 export class Herald {
     constructor() {
         _Herald_instances.add(this);
         _Herald_injected.set(this, void 0);
         _Herald_subscribers.set(this, {});
+        _Herald_subscribersMap.set(this, {});
     }
     inject(injections) {
         if (__classPrivateFieldGet(this, _Herald_injected, "f"))
@@ -26,7 +27,9 @@ export class Herald {
         if (!(event instanceof CustomEvent)) {
             throw new Error('Event passed to dispatcher must be of type CustomEvent');
         }
-        const { marshal } = __classPrivateFieldGet(this, _Herald_injected, "f"), key = event.type, subscribers = (__classPrivateFieldGet(this, _Herald_subscribers, "f")[key] ?? []);
+        const { marshal } = __classPrivateFieldGet(this, _Herald_injected, "f"), key = event.type, 
+        // Cloning subs array to not skip other subscriptions if previous subs unregistered during their execution
+        subscribers = [...(__classPrivateFieldGet(this, _Herald_subscribers, "f")[key] ?? [])];
         for (const subscriber of subscribers) {
             try {
                 const constraint = subscriber.constraint, module = typeof constraint == 'string' ? marshal.get(constraint) : constraint;
@@ -38,6 +41,7 @@ export class Herald {
                     }
                 }
                 if (typeof method != 'function') {
+                    console.error('Error below references this object', constraint);
                     throw new Error('Module ' + String(constraint.constructor ?? constraint) + ' doesn\'t have non-static method '
                         + String(subscriber.method));
                 }
@@ -49,28 +53,58 @@ export class Herald {
             }
             catch (e) {
                 console.error('Dispatcher error:', e);
+                throw e;
             }
         }
     }
-    register(event, subscription, constraint, sort = true) {
-        const subs = (Array.isArray(subscription) ? subscription : [subscription]);
+    register(event, subscription, constraint = null, sort = true, symbol = null) {
+        symbol ?? (symbol = Symbol('event'));
+        const subs = (Array.isArray(subscription)
+            ? subscription
+            : [
+                typeof subscription == 'object'
+                    ? subscription
+                    : { method: subscription }
+            ]);
         for (const sub of subs) {
+            sub.priority ?? (sub.priority = 0);
             if (sub.priority < -256 || sub.priority > 256) {
                 console.error('Subscriber priority must be in range -256:256', { [event]: sub });
-                return;
+                throw new Error('Error above stopped registration of an event');
             }
+            sub.constraint ?? (sub.constraint = constraint);
         }
-        constraint ?? (constraint = null);
         __classPrivateFieldGet(this, _Herald_subscribers, "f")[event] = [
             ...(__classPrivateFieldGet(this, _Herald_subscribers, "f")[event] ?? []),
-            ...(__classPrivateFieldGet(this, _Herald_instances, "m", _Herald_isObject).call(this, subscription) && [{ ...subscription, constraint }])
-                || (Array.isArray(subscription) && (subscription.map(subscription => ({ ...subscription, constraint }))))
-                || ([{ method: subscription, priority: 0, constraint }]),
+            ...subs,
+        ];
+        __classPrivateFieldGet(this, _Herald_subscribersMap, "f")[symbol] = [
+            ...(__classPrivateFieldGet(this, _Herald_subscribersMap, "f")[symbol] ?? []),
+            ...subs,
         ];
         sort && __classPrivateFieldGet(this, _Herald_instances, "m", _Herald_sort).call(this, event);
+        return () => {
+            this.unregister(event, symbol);
+        };
+    }
+    unregister(event, symbol) {
+        if (!__classPrivateFieldGet(this, _Herald_subscribersMap, "f")[symbol]) {
+            console.warn('Tried to unregister not registered events', event);
+            return;
+        }
+        const events = [...__classPrivateFieldGet(this, _Herald_subscribers, "f")[event]];
+        __classPrivateFieldGet(this, _Herald_subscribersMap, "f")[symbol].forEach(sub => {
+            const index = events.indexOf(sub);
+            if (index !== -1)
+                events.splice(index, 1);
+            else
+                throw new Error('Attempt to remove event from wrong collection');
+        });
+        __classPrivateFieldGet(this, _Herald_subscribers, "f")[event] = events; // Persists the changes
+        delete __classPrivateFieldGet(this, _Herald_subscribersMap, "f")[symbol];
     }
 }
-_Herald_injected = new WeakMap(), _Herald_subscribers = new WeakMap(), _Herald_instances = new WeakSet(), _Herald_isObject = function _Herald_isObject(x) {
+_Herald_injected = new WeakMap(), _Herald_subscribers = new WeakMap(), _Herald_subscribersMap = new WeakMap(), _Herald_instances = new WeakSet(), _Herald_isObject = function _Herald_isObject(x) {
     return typeof x === 'object' && !Array.isArray(x) && x !== null;
 }, _Herald_sortSubscribers = function _Herald_sortSubscribers() {
     const { marshal } = __classPrivateFieldGet(this, _Herald_injected, "f");
