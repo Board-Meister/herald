@@ -18,6 +18,13 @@ export interface ISubscriberObject {
     module: ISubscriber;
     config: RegisterConfig;
 }
+export interface IEventRegistration {
+    event: string;
+    subscription: AmbiguousSubscription;
+    constraint?: string | Module | null;
+    sort?: boolean;
+    symbol?: symbol | null;
+}
 interface IInjection extends Record<string, object> {
     subscribers: ISubscriberObject[];
     marshal: Marshal;
@@ -27,6 +34,7 @@ export declare class Herald {
     static inject: Record<string, string>;
     inject(injections: IInjection): void;
     dispatch(event: CustomEvent): Promise<void>;
+    batch(events: IEventRegistration[]): () => void;
     register(event: string, subscription: AmbiguousSubscription, constraint?: string | Module | null, sort?: boolean, symbol?: symbol | null): () => void;
     unregister(event: string, symbol: symbol): void;
 }

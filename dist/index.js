@@ -57,6 +57,17 @@ export class Herald {
             }
         }
     }
+    batch(events) {
+        const unregistrations = [];
+        events.forEach(({ event, subscription, constraint = null, sort = true, symbol = null, }) => {
+            unregistrations.push(this.register(event, subscription, constraint, sort, symbol));
+        });
+        return () => {
+            unregistrations.forEach(unregistration => {
+                unregistration();
+            });
+        };
+    }
     register(event, subscription, constraint = null, sort = true, symbol = null) {
         symbol ?? (symbol = Symbol('event'));
         const subs = (Array.isArray(subscription)

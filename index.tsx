@@ -24,6 +24,14 @@ export interface ISubscriberObject {
   config: RegisterConfig;
 }
 
+export interface IEventRegistration {
+  event: string,
+  subscription: AmbiguousSubscription,
+  constraint?: string|Module|null,
+  sort?: boolean,
+  symbol?: symbol|null,
+}
+
 interface IInjection extends Record<string, object> {
   subscribers: ISubscriberObject[];
   marshal: Marshal;
@@ -121,6 +129,37 @@ export class Herald {
     Object.keys(this.#subscribers).forEach(event => {
       this.#sort(event);
     })
+  }
+
+  batch(events: IEventRegistration[]): () => void {
+    const unregistrations: (() => void)[] = [];
+    events.forEach(
+      (
+        {
+          event,
+          subscription,
+          constraint = null,
+          sort = true,
+          symbol = null,
+        }
+      ) => {
+        unregistrations.push(
+          this.register(
+            event,
+            subscription,
+            constraint,
+            sort,
+            symbol,
+          )
+        );
+      }
+    );
+
+    return () => {
+      unregistrations.forEach(unregistration => {
+        unregistration()
+      });
+    }
   }
 
   register(
