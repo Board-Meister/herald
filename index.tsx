@@ -14,7 +14,7 @@ export type Subscriptions = Record<string, AmbiguousSubscription>;
 
 export interface Subscription {
   method: string|EventHandler;
-  priority: number;
+  priority?: number;
   constraint?: string|Module|null;
   index?: number;
 }
@@ -179,7 +179,7 @@ export class Herald {
             ? subscription
             : { method: subscription }
         ]
-      ) as Subscription[]
+    )
     ;
     for (const sub of subs) {
       sub.priority ??= 0;
@@ -224,7 +224,7 @@ export class Herald {
   }
 
   #sort(event: string): void {
-    this.#subscribers[event].sort((a: Subscription, b: Subscription) => a.priority - b.priority);
+    this.#subscribers[event].sort((a: Subscription, b: Subscription) => a.priority! - b.priority!);
   }
 }
 

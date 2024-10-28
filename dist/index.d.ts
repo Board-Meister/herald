@@ -10,7 +10,7 @@ export type EventHandler = (event: CustomEvent) => Promise<void> | void;
 export type Subscriptions = Record<string, AmbiguousSubscription>;
 export interface Subscription {
     method: string | EventHandler;
-    priority: number;
+    priority?: number;
     constraint?: string | Module | null;
     index?: number;
 }
