@@ -2,8 +2,8 @@
   "name": "@boardmeister/herald",
   "version": "0.0.1",
   "description": "Core module responsible for managing event handling",
-  "main": "dist/index.min.js",
-  "module": "dist/index.min.js",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
     "/dist"

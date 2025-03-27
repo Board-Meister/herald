@@ -9,7 +9,7 @@ var __classPrivateFieldSet = (this && this.__classPrivateFieldSet) || function (
     if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
     return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
 };
-var _Herald_instances, _Herald_injected, _Herald_subscribers, _Herald_subscribersMap, _Herald_isObject, _Herald_sortSubscribers, _Herald_sort;
+var _Herald_instances, _Herald_injected, _Herald_subscribers, _Herald_subscribersMap, _Herald_continueDispatching, _Herald_validateEvent, _Herald_prepareSubscribers, _Herald_getSubscriberMethod, _Herald_isObject, _Herald_sortSubscribers, _Herald_sort;
 export class Herald {
     constructor() {
         _Herald_instances.add(this);
@@ -24,30 +24,26 @@ export class Herald {
         __classPrivateFieldGet(this, _Herald_instances, "m", _Herald_sortSubscribers).call(this);
     }
     async dispatch(event) {
-        if (!(event instanceof CustomEvent)) {
-            throw new Error('Event passed to dispatcher must be of type CustomEvent');
-        }
-        const { marshal } = __classPrivateFieldGet(this, _Herald_injected, "f"), key = event.type, 
-        // Cloning subs array to not skip other subscriptions if previous subs unregistered during their execution
-        subscribers = [...(__classPrivateFieldGet(this, _Herald_subscribers, "f")[key] ?? [])];
-        for (const subscriber of subscribers) {
+        __classPrivateFieldGet(this, _Herald_instances, "m", _Herald_validateEvent).call(this, event);
+        for (const subscriber of __classPrivateFieldGet(this, _Herald_instances, "m", _Herald_prepareSubscribers).call(this, event.type)) {
             try {
-                const constraint = subscriber.constraint, module = typeof constraint == 'string' ? marshal.get(constraint) : constraint;
-                let method = subscriber.method;
-                if (module && typeof method == 'string') {
-                    method = module[method] ?? null;
-                    if (method) {
-                        method = method.bind(module);
-                    }
+                await __classPrivateFieldGet(this, _Herald_instances, "m", _Herald_getSubscriberMethod).call(this, subscriber)(event);
+                if (__classPrivateFieldGet(this, _Herald_instances, "m", _Herald_continueDispatching).call(this, event)) {
+                    break;
                 }
-                if (typeof method != 'function') {
-                    console.error('Error below references this object', constraint);
-                    throw new Error('Module ' + String(constraint.constructor ?? constraint) + ' doesn\'t have non-static method '
-                        + String(subscriber.method));
-                }
-                await method(event);
-                // Stop propagation
-                if (event.cancelBubble) {
+            }
+            catch (e) {
+                console.error('Dispatcher error:', e);
+                throw e;
+            }
+        }
+    }
+    dispatchSync(event) {
+        __classPrivateFieldGet(this, _Herald_instances, "m", _Herald_validateEvent).call(this, event);
+        for (const subscriber of __classPrivateFieldGet(this, _Herald_instances, "m", _Herald_prepareSubscribers).call(this, event.type)) {
+            try {
+                __classPrivateFieldGet(this, _Herald_instances, "m", _Herald_getSubscriberMethod).call(this, subscriber)(event);
+                if (__classPrivateFieldGet(this, _Herald_instances, "m", _Herald_continueDispatching).call(this, event)) {
                     break;
                 }
             }
@@ -115,7 +111,30 @@ export class Herald {
         delete __classPrivateFieldGet(this, _Herald_subscribersMap, "f")[symbol];
     }
 }
-_Herald_injected = new WeakMap(), _Herald_subscribers = new WeakMap(), _Herald_subscribersMap = new WeakMap(), _Herald_instances = new WeakSet(), _Herald_isObject = function _Herald_isObject(x) {
+_Herald_injected = new WeakMap(), _Herald_subscribers = new WeakMap(), _Herald_subscribersMap = new WeakMap(), _Herald_instances = new WeakSet(), _Herald_continueDispatching = function _Herald_continueDispatching(event) {
+    return event.cancelBubble;
+}, _Herald_validateEvent = function _Herald_validateEvent(event) {
+    if (!(event instanceof CustomEvent)) {
+        throw new Error('Event passed to dispatcher must be of type CustomEvent');
+    }
+}, _Herald_prepareSubscribers = function _Herald_prepareSubscribers(key) {
+    return [...(__classPrivateFieldGet(this, _Herald_subscribers, "f")[key] ?? [])];
+}, _Herald_getSubscriberMethod = function _Herald_getSubscriberMethod(subscriber) {
+    const constraint = subscriber.constraint, { marshal } = __classPrivateFieldGet(this, _Herald_injected, "f"), module = typeof constraint == 'string' ? marshal.get(constraint) : constraint;
+    let method = subscriber.method;
+    if (module && typeof method == 'string') {
+        method = module[method] ?? null;
+        if (method) {
+            method = method.bind(module);
+        }
+    }
+    if (typeof method != 'function') {
+        console.error('Error below references this object', constraint);
+        throw new Error('Module ' + String(constraint.constructor ?? constraint) + ' doesn\'t have non-static method '
+            + String(subscriber.method));
+    }
+    return method;
+}, _Herald_isObject = function _Herald_isObject(x) {
     return typeof x === 'object' && !Array.isArray(x) && x !== null;
 }, _Herald_sortSubscribers = function _Herald_sortSubscribers() {
     const { marshal } = __classPrivateFieldGet(this, _Herald_injected, "f");

@@ -53,40 +53,13 @@ export class Herald {
   }
 
   async dispatch(event: CustomEvent): Promise<void> {
-    if (!(event instanceof CustomEvent)) {
-      throw new Error('Event passed to dispatcher must be of type CustomEvent')
-    }
+    this.#validateEvent(event);
 
-    const { marshal } = this.#injected!,
-      key = event.type,
-      // Cloning subs array to not skip other subscriptions if previous subs unregistered during their execution
-      subscribers = [...(this.#subscribers[key] ?? [])]
-    ;
-    for (const subscriber of subscribers) {
+    for (const subscriber of this.#prepareSubscribers(event.type)) {
       try {
-        const constraint = subscriber.constraint!,
-          module = typeof constraint == 'string' ? marshal.get<Module>(constraint) : constraint
-        ;
-        let method: EventHandler|string|null = subscriber.method;
-        if (module && typeof method == 'string') {
-          method = module[method] as EventHandler ?? null;
-          if (method) {
-            method = method.bind(module);
-          }
-        }
+        await this.#getSubscriberMethod(subscriber)(event);
 
-        if (typeof method != 'function') {
-          console.error('Error below references this object', constraint)
-          throw new Error(
-            'Module ' + String(constraint.constructor ?? constraint) + ' doesn\'t have non-static method '
-            + String(subscriber.method)
-          );
-        }
-
-        await method(event);
-
-        // Stop propagation
-        if (event.cancelBubble) {
+        if (this.#continueDispatching(event)) {
           break;
         }
       } catch (e) {
@@ -94,6 +67,62 @@ export class Herald {
         throw e;
       }
     }
+  }
+
+  dispatchSync(event: CustomEvent): void {
+    this.#validateEvent(event);
+
+    for (const subscriber of this.#prepareSubscribers(event.type)) {
+      try {
+        (this.#getSubscriberMethod(subscriber) as (event: CustomEvent) => void)(event);
+
+        if (this.#continueDispatching(event)) {
+          break;
+        }
+      } catch (e) {
+        console.error('Dispatcher error:', e);
+        throw e;
+      }
+    }
+  }
+
+  #continueDispatching(event: CustomEvent): boolean {
+    return event.cancelBubble;
+  }
+
+  #validateEvent(event: any): void {
+    if (!(event instanceof CustomEvent)) {
+      throw new Error('Event passed to dispatcher must be of type CustomEvent')
+    }
+  }
+
+  // Cloning subs array to not skip other subscriptions if previous subs unregistered during their execution
+  #prepareSubscribers(key: string): Subscription[] {
+    return [...(this.#subscribers[key] ?? [])];
+  }
+
+  #getSubscriberMethod(subscriber: Subscription): EventHandler {
+    const constraint = subscriber.constraint!,
+      { marshal } = this.#injected!,
+      module = typeof constraint == 'string' ? marshal.get<Module>(constraint) : constraint
+    ;
+    let method: EventHandler|string|null = subscriber.method;
+    if (module && typeof method == 'string') {
+      method = module[method] as EventHandler ?? null;
+      if (method) {
+        method = method.bind(module);
+      }
+    }
+
+    if (typeof method != 'function') {
+      console.error('Error below references this object', constraint)
+      throw new Error(
+        'Module ' + String(constraint.constructor ?? constraint) + ' doesn\'t have non-static method '
+        + String(subscriber.method)
+      );
+    }
+
+    return method;
   }
 
   #isObject(x: unknown): boolean {
