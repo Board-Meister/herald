@@ -9,7 +9,7 @@ declare class _ISubscriber {
 export type ISubscriber = typeof _ISubscriber;
 
 export type AmbiguousSubscription = string|Subscription|Subscription[]|EventHandler;
-export type EventHandler = (event: CustomEvent) => Promise<void>|void;
+export type EventHandler = (event: CustomEvent) => Promise<any>|any;
 export type Subscriptions = Record<string, AmbiguousSubscription>;
 
 export interface Subscription {
@@ -32,13 +32,15 @@ export interface IEventRegistration {
   symbol?: symbol|null,
 }
 
-interface IInjection extends Record<string, object> {
+interface IInjection extends Record<string, object|undefined> {
   subscribers: ISubscriberObject[];
-  marshal: Marshal;
+  marshal?: Marshal;
 }
 
 export class Herald {
-  #injected?: IInjection;
+  #injected?: IInjection = {
+    subscribers: [],
+  };
   #subscribers: Record<string, Subscription[]> = {};
   #subscribersMap: Record<symbol, Subscription[]> = {};
 
@@ -47,7 +49,7 @@ export class Herald {
     'subscribers': '!subscriber',
   }
   inject(injections: IInjection): void {
-    if (this.#injected) return;
+    if (!this.#injected) return;
     this.#injected = injections;
     this.#sortSubscribers();
   }
@@ -87,7 +89,7 @@ export class Herald {
   }
 
   #continueDispatching(event: CustomEvent): boolean {
-    return event.cancelBubble;
+    return event.cancelBubble; // @TODO feature deprecated
   }
 
   #validateEvent(event: any): void {
@@ -103,12 +105,12 @@ export class Herald {
 
   #getSubscriberMethod(subscriber: Subscription): EventHandler {
     const constraint = subscriber.constraint!,
-      { marshal } = this.#injected!,
-      module = typeof constraint == 'string' ? marshal.get<Module>(constraint) : constraint
+      { marshal = null } = this.#injected!,
+      module = typeof constraint == 'string' ? marshal?.get<Module>(constraint) : constraint
     ;
     let method: EventHandler|string|null = subscriber.method;
     if (module && typeof method == 'string') {
-      method = module[method] as EventHandler ?? null;
+      method = (module as Record<string, Function>)[method] as EventHandler ?? null;
       if (method) {
         method = method.bind(module);
       }
@@ -130,9 +132,9 @@ export class Herald {
   }
 
   #sortSubscribers(): void {
-    const { marshal } = this.#injected!;
+    const { marshal = null, subscribers = [] } = this.#injected!;
     this.#subscribers = {};
-    this.#injected!.subscribers.forEach(subscriberObject => {
+    subscribers.forEach(subscriberObject => {
       // Allows us to sort before classes where initialized
       const subscriptions = subscriberObject.module.subscriptions
         ?? (subscriberObject.module.constructor as typeof _ISubscriber)?.subscriptions
@@ -149,7 +151,7 @@ export class Herald {
         this.register(
           moduleName,
           subscriptions[moduleName],
-          marshal.getModuleConstraint(subscriberObject.config),
+          marshal?.getModuleConstraint(subscriberObject.config) ?? null,
           false,
         );
       });
@@ -257,5 +259,5 @@ export class Herald {
   }
 }
 
-const EnHerald: IInjectable = Herald;
+const EnHerald: IInjectable<IInjection> = Herald;
 export default EnHerald;

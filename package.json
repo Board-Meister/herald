@@ -9,9 +9,11 @@
     "/dist"
   ],
   "scripts": {
-    "link" : "npm link @boardmeister/marshal @boardmeister/minstrel",
-    "build": "tsc && npm run module",
-    "module": "esbuild `find ./dist -name '*.js'` --outdir=./min --minify --platform=neutral --main-fields=module,main"
+    "link": "npm link @boardmeister/marshal",
+    "typescript": "./node_modules/.bin/dts-bundle-generator --no-check --export-referenced-types false --project tsconfig.json -o dist/index.d.ts index.tsx",
+    "build": "node esbuild.config.mjs && npm run typescript",
+    "test": "npx jasmine-browser-runner runSpecs",
+    "serve-jasmine": "npx jasmine-browser-runner serve"
   },
   "repository": {
     "type": "git",
@@ -26,22 +28,19 @@
   "bugs": {
     "url": "hhttps://github.com/Board-Meister/herald/issues"
   },
-  "dependencies": {
-    "react": "^18.2.0",
-    "react-jss": "^10.10.0"
-  },
   "homepage": "https://github.com/Board-Meister/herald#readme",
   "devDependencies": {
-    "react-router-dom": "^6.22.3",
-    "@types/react": "^18.2.66",
-    "@types/react-dom": "^18.2.22",
+    "@types/jasmine": "^5.1.8",
     "@typescript-eslint/eslint-plugin": "^7.2.0",
     "@typescript-eslint/parser": "^7.2.0",
+    "dts-bundle-generator": "^9.5.1",
     "esbuild": "0.21.4",
+    "esbuild-plugin-output-reset": "^2.0.1",
     "eslint": "^8.57.0",
-    "eslint-plugin-react": "^7.34.1",
-    "eslint-plugin-react-hooks": "^4.6.0",
-    "eslint-plugin-react-refresh": "^0.4.6",
+    "glob": "^11.0.2",
+    "jasmine": "^5.7.1",
+    "jasmine-browser-runner": "^3.0.0",
+    "jasmine-core": "^5.7.1",
     "typescript": "^5.4.5"
   }
 }
