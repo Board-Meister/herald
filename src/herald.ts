@@ -1,7 +1,8 @@
 import type { Module } from "@boardmeister/marshal"
 import type {
   Subscription, IEventRegistration, IListen, AmbiguousSubscription, OptionalSubscription, EventHandler,
-  IEventSettings
+  IEventSettings,
+  LocalizedEventDirection
 } from "./type.d";
 import type Marshal from "@boardmeister/marshal";
 
@@ -14,12 +15,10 @@ export default class Herald {
     this.#marshal = marshal;
   }
 
-  async dispatch(event: CustomEvent, {
-    origin = null,
-  }: IEventSettings = {}): Promise<void> {
+  async dispatch(event: CustomEvent, settings: IEventSettings = {}): Promise<void> {
     this.#validateEvent(event);
 
-    for (const subscriber of this.#prepareSubscribers(event.type, origin)) {
+    for (const subscriber of this.#prepareSubscribers(event.type, settings)) {
       try {
         await this.#getSubscriberMethod(subscriber)(event);
 
@@ -33,12 +32,10 @@ export default class Herald {
     }
   }
 
-  dispatchSync(event: CustomEvent, {
-    origin = null,
-  }: IEventSettings = {}): void {
+  dispatchSync(event: CustomEvent, settings: IEventSettings = {}): void {
     this.#validateEvent(event);
 
-    for (const subscriber of this.#prepareSubscribers(event.type, origin)) {
+    for (const subscriber of this.#prepareSubscribers(event.type, settings)) {
       try {
         (this.#getSubscriberMethod(subscriber) as (event: CustomEvent) => void)(event);
 
@@ -200,10 +197,16 @@ export default class Herald {
   }
 
   // Cloning subs array to not skip other subscriptions if previous subs unregistered during their execution
-  #prepareSubscribers(key: string, origin: Node|null = null): Subscription[] {
+  #prepareSubscribers(
+    key: string,
+    {
+      origin = null,
+      direction = 'up',
+    }: IEventSettings
+  ): Subscription[] {
     const filtered: Subscription[] = [];
     for (const sub of this.#subscribers[key] ?? []) {
-      if (this.#listensForLocalizedEvents(sub, origin)) {
+      if (this.#listensForLocalizedEvents(sub, origin, direction)) {
         filtered.push(sub);
       }
     }
@@ -211,8 +214,15 @@ export default class Herald {
     return filtered;
   }
 
-  #listensForLocalizedEvents(sub: Subscription, origin: Node|null) {
-    return !sub.anchor || sub.anchor === origin || sub.anchor.contains(origin);
+  #listensForLocalizedEvents(sub: Subscription, origin: Node|null, direction: LocalizedEventDirection) {
+    if (!origin || !sub.anchor || sub.anchor === origin) {
+      return true;
+    }
+
+    return direction == 'up' && sub.anchor.contains(origin)
+      || direction == 'down' && origin.contains(sub.anchor)
+      || direction == 'both' && (origin.contains(sub.anchor) || sub.anchor.contains(origin))
+    ;
   }
 
   #getSubscriberMethod(subscriber: Subscription): EventHandler {

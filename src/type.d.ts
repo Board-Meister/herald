@@ -46,6 +46,9 @@ declare class _ISubscriber {
 }
 export type ISubscriber = typeof _ISubscriber;
 
+export type LocalizedEventDirection = 'up'|'down'|'both';
+
 export interface IEventSettings {
-  origin?: Node|null
+  origin?: Node|null;
+  direction?: LocalizedEventDirection;
 }

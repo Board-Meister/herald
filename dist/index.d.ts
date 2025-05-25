@@ -43,14 +43,16 @@ export declare class _ISubscriber {
 	static subscriptions: Subscriptions;
 }
 export type ISubscriber = typeof _ISubscriber;
+export type LocalizedEventDirection = "up" | "down" | "both";
 export interface IEventSettings {
 	origin?: Node | null;
+	direction?: LocalizedEventDirection;
 }
 export declare class Herald {
 	#private;
 	constructor(marshal?: Marshal | null);
-	dispatch(event: CustomEvent, { origin, }?: IEventSettings): Promise<void>;
-	dispatchSync(event: CustomEvent, { origin, }?: IEventSettings): void;
+	dispatch(event: CustomEvent, settings?: IEventSettings): Promise<void>;
+	dispatchSync(event: CustomEvent, settings?: IEventSettings): void;
 	batch(events: IEventRegistration[]): () => void;
 	/**
 	 * Wrapper method for `register`
