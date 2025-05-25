@@ -1,6 +1,6 @@
 {
   "name": "@boardmeister/herald",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Core module responsible for managing event handling",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -9,8 +9,7 @@
     "/dist"
   ],
   "scripts": {
-    "link": "npm link @boardmeister/marshal",
-    "typescript": "./node_modules/.bin/dts-bundle-generator --no-check --export-referenced-types false --project tsconfig.json -o dist/index.d.ts index.tsx",
+    "typescript": "./node_modules/.bin/dts-bundle-generator --no-check --export-referenced-types false --project tsconfig.json -o dist/index.d.ts src/index.ts",
     "build": "node esbuild.config.mjs && npm run typescript",
     "test": "npx jasmine-browser-runner runSpecs",
     "serve-jasmine": "npx jasmine-browser-runner serve"
@@ -30,6 +29,7 @@
   },
   "homepage": "https://github.com/Board-Meister/herald#readme",
   "devDependencies": {
+    "@boardmeister/marshal": "^0.0.2",
     "@types/jasmine": "^5.1.8",
     "@typescript-eslint/eslint-plugin": "^7.2.0",
     "@typescript-eslint/parser": "^7.2.0",

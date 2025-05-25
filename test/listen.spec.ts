@@ -1,6 +1,6 @@
 import { Herald } from "src/index";
 
-describe('Herald', () => {
+describe('Herald listen', () => {
   let herald: Herald;
   beforeEach(() => {
     herald = new Herald();
@@ -8,9 +8,9 @@ describe('Herald', () => {
 
   it('registers and dispatches events properly', async () => {
     let fired = false;
-    herald.register('test', () => {
+    herald.listen({ event: 'test', subscription: () => {
       fired = true;
-    });
+    }});
     await herald.dispatch(new CustomEvent('test'));
 
     expect(fired).toBeTrue();
@@ -19,9 +19,9 @@ describe('Herald', () => {
   it('event caries details to handler', async () => {
     const info = Math.random();
     let fired: false|number = false;
-    herald.register('test', (e: CustomEvent<{ info: number }>) => {
+    herald.listen({ event: 'test', subscription: (e: CustomEvent<{ info: number }>) => {
       fired = e.detail.info;
-    });
+    }});
     await herald.dispatch(new CustomEvent('test', {
       detail: {
         info,
@@ -33,9 +33,9 @@ describe('Herald', () => {
 
   it('allows to unregister from event', async () => {
     let fired = false;
-    const unregister = herald.register('test', () => {
+    const unregister = herald.listen({ event: 'test', subscription: () => {
       fired = true;
-    });
+    }});
     await herald.dispatch(new CustomEvent('test'));
 
     expect(fired).toBeTrue();
@@ -47,9 +47,9 @@ describe('Herald', () => {
 
   it('dispatches event synchronously if needed', () => {
     let fired = false;
-    herald.register('test', () => {
+    herald.listen({ event: 'test', subscription: () => {
       fired = true;
-    });
+    }});
     herald.dispatchSync(new CustomEvent('test'));
 
     expect(fired).toBeTrue();
@@ -91,11 +91,11 @@ describe('Herald', () => {
   });
 
   it('allows manual deregistration', async () => {
-    const registerSymbol = Symbol('register');
+    const registerSymbol = Symbol('listen');
     let fired = false;
-    herald.register('test', () => {
+    herald.listen({ event: 'test', subscription: () => {
       fired = true;
-    }, null, true, registerSymbol);
+    }, symbol: registerSymbol});
 
     await herald.dispatch(new CustomEvent('test'));
     expect(fired).toBeTrue();
@@ -109,99 +109,35 @@ describe('Herald', () => {
 
   it('allows to set priority', async () => {
     const fired: number[] = [];
-    herald.register(
-      'test',
-      {
+    herald.listen({
+      event: 'test',
+      subscription: {
         method: () => {
           fired.push(1);
         },
         priority: 1,
       }
-    );
-    herald.register(
-      'test',
-      {
+    });
+    herald.listen({
+      event: 'test',
+      subscription: {
         method: () => {
           fired.push(-1);
         },
         priority: -1,
       }
-    );
-    herald.register(
-      'test',
-      {
+    });
+    herald.listen({
+      event: 'test',
+      subscription: {
         method: () => {
           fired.push(0);
         },
         priority: 0,
       }
-    );
+    });
 
     await herald.dispatch(new CustomEvent('test'));
     expect(fired).toEqual(jasmine.objectContaining([-1, 0, 1]));
-  });
-
-  it('allows to set priority on batch', async () => {
-    const fired: number[] = [];
-    herald.batch([
-      {
-        event: 'test',
-        subscription: {
-          method: () => {
-            fired.push(0);
-          },
-          priority: 0,
-        }
-      },
-      {
-        event: 'test',
-        subscription: {
-          method: () => {
-            fired.push(1);
-          },
-          priority: 1,
-        }
-      },
-      {
-        event: 'test',
-        subscription: {
-          method: () => {
-            fired.push(-1);
-          },
-          priority: -1,
-        }
-      }
-    ])
-
-    await herald.dispatch(new CustomEvent('test'));
-    expect(fired).toEqual(jasmine.objectContaining([-1, 0, 1]));
-  });
-
-  it('allows to stop event from propagating', async () => {
-    let fired = false;
-    herald.batch([
-      {
-        event: 'test',
-        subscription: {
-          method: (e: CustomEvent) => {
-            fired = true;
-            e.stopPropagation();
-          },
-          priority: 0,
-        }
-      },
-      {
-        event: 'test',
-        subscription: {
-          method: () => {
-            fired = false;
-          },
-          priority: 1,
-        }
-      },
-    ])
-
-    await herald.dispatch(new CustomEvent('test'));
-    expect(fired).toBeTrue();
   });
 });
