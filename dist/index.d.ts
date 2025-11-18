@@ -6,17 +6,18 @@ import { Module, RegisterConfig } from '@boardmeister/marshal';
 export type AmbiguousSubscription = string | OptionalSubscription | OptionalSubscription[] | EventHandler;
 export type EventHandler = (event: CustomEvent) => Promise<any> | any;
 export type Subscriptions = Record<string, AmbiguousSubscription>;
+export type Anchor = Node | object | symbol | null;
 export interface Subscription {
 	method: string | EventHandler;
 	priority: number;
 	constraint: string | Module | null;
-	anchor: Node | null;
+	anchor: Anchor;
 }
 export interface OptionalSubscription {
 	method: string | EventHandler;
 	priority?: number;
 	constraint?: string | Module | null;
-	anchor?: Node | null;
+	anchor?: Anchor;
 }
 export interface ISubscriberObject {
 	module: ISubscriber;
@@ -28,12 +29,12 @@ export interface IEventRegistration {
 	constraint?: string | Module | null;
 	sort?: boolean;
 	symbol?: symbol | null;
-	anchor?: Node | null;
+	anchor?: Anchor;
 }
 export interface IListen {
 	event: string;
 	subscription: AmbiguousSubscription;
-	anchor?: Node | null;
+	anchor?: Anchor;
 	symbol?: symbol | null;
 	sort?: boolean;
 	constraint?: string | Module | null;
@@ -45,7 +46,7 @@ export declare class _ISubscriber {
 export type ISubscriber = typeof _ISubscriber;
 export type LocalizedEventDirection = "up" | "down" | "both";
 export interface IEventSettings {
-	origin?: Node | null;
+	origin?: Anchor;
 	direction?: LocalizedEventDirection;
 }
 export declare class Herald {
@@ -67,7 +68,7 @@ export declare class Herald {
 	 * still, using registration can result in a smaller size, so it's not completely useless.
 	 */
 	listen({ event, subscription, constraint, sort, symbol, anchor, }: IListen): () => void;
-	register(event: string, subscription: AmbiguousSubscription, constraint?: string | Module | null, sort?: boolean, symbol?: symbol | null, anchor?: Node | null): () => void;
+	register(event: string, subscription: AmbiguousSubscription, constraint?: string | Module | null, sort?: boolean, symbol?: symbol | null, anchor?: Anchor): () => void;
 	unregister(event: string, symbol: symbol): void;
 }
 

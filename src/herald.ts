@@ -2,7 +2,8 @@ import type { Module } from "@boardmeister/marshal"
 import type {
   Subscription, IEventRegistration, IListen, AmbiguousSubscription, OptionalSubscription, EventHandler,
   IEventSettings,
-  LocalizedEventDirection
+  LocalizedEventDirection,
+  Anchor
 } from "./type.d";
 import type Marshal from "@boardmeister/marshal";
 
@@ -111,7 +112,7 @@ export default class Herald {
     constraint: string|Module|null = null,
     sort = true,
     symbol: symbol|null = null,
-    anchor: Node|null = null,
+    anchor: Anchor = null,
   ): () => void {
     symbol ??= this.#generateEventSymbol();
     const subs = this.#ambiguousToSubscriptions(subscription, constraint, anchor);
@@ -141,7 +142,7 @@ export default class Herald {
   #ambiguousToSubscriptions(
     subscription: AmbiguousSubscription,
     constraint:  string|Module|null = null,
-    anchor:  Node|null = null,
+    anchor:  Anchor = null,
   ): Subscription[] {
     const subs: OptionalSubscription[] = (
       Array.isArray(subscription)
@@ -214,9 +215,13 @@ export default class Herald {
     return filtered;
   }
 
-  #listensForLocalizedEvents(sub: Subscription, origin: Node|null, direction: LocalizedEventDirection) {
+  #listensForLocalizedEvents(sub: Subscription, origin: Anchor, direction: LocalizedEventDirection) {
     if (!origin || !sub.anchor || sub.anchor === origin) {
       return true;
+    }
+
+    if (!(sub.anchor instanceof Node) || !(origin instanceof Node)) {
+      return false;
     }
 
     return direction == 'up' && sub.anchor.contains(origin)
