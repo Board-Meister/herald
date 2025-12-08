@@ -120,7 +120,7 @@ export default class Herald {
 
     sort && this.#sort(event);
 
-    return unregister
+    return unregister;
   }
 
   unregister(event: string, symbol: symbol): void {
@@ -216,7 +216,11 @@ export default class Herald {
   }
 
   #listensForLocalizedEvents(sub: Subscription, origin: Anchor, direction: LocalizedEventDirection) {
-    if (!origin || !sub.anchor || sub.anchor === origin) {
+    if ((!origin && sub.anchor) || (!sub.anchor && origin)) {
+      return false;
+    }
+
+    if (sub.anchor === origin) {
       return true;
     }
 
